@@ -1437,7 +1437,10 @@ let isSyncing  = false;
 
 function initFirebase() {
   try {
-    if (typeof firebase === 'undefined' || typeof firebaseConfig === 'undefined') return;
+    if (typeof firebase === 'undefined' || typeof firebaseConfig === 'undefined') {
+      hideLoginOverlay();
+      return;
+    }
 
     // Firebase 앱 초기화 (중복 방지)
     if (!firebase.apps.length) {
@@ -1445,14 +1448,11 @@ function initFirebase() {
     }
     firebaseDB = firebase.database();
 
-    // 여러 기기 데이터 동기화 (실시간)
-    syncFromFirebase();
+    // 로그인 없이 바로 입장
+    setupNoAuthMode();
 
     // SMS 실시간 수신 리스너
     listenForSMS();
-
-    // Google Auth 상태 감지
-    setupGoogleAuth();
 
     // 동기화 상태 표시
     setSyncStatus(true);
@@ -1460,83 +1460,84 @@ function initFirebase() {
   } catch(e) {
     console.warn('Firebase 연결 실패 (로컬 모드):', e.message);
     setSyncStatus(false);
-    // Firebase 없어도 로그인 화면 숨김
     hideLoginOverlay();
   }
 }
 
 // ==========================================
-// ── GOOGLE AUTH ───────────────────────────
+// ── NO-AUTH MODE (기기 ID 기반 동기화) ────
 // ==========================================
-function setupGoogleAuth() {
-  if (typeof firebase === 'undefined' || !firebase.auth) { hideLoginOverlay(); return; }
-  firebase.auth().languageCode = 'ko';
+function setupNoAuthMode() {
+  // 기기 고유 ID 생성 또는 불러오기
+  let deviceId = localStorage.getItem('myspace_device_id');
+  if (!deviceId) {
+    deviceId = 'device_' + Math.random().toString(36).substr(2, 12) + '_' + Date.now();
+    localStorage.setItem('myspace_device_id', deviceId);
+  }
 
-  // 리다이렉트 방식 결과 처리 (구글에서 돌아왔을 때)
-  firebase.auth().getRedirectResult().then(result => {
-    if (result && result.user) {
-      console.log('✅ 리다이렉트 로그인 성공:', result.user.email);
-    }
-  }).catch(err => {
-    console.error('리다이렉트 결과 오류:', err);
-    if (err.code !== 'auth/credential-already-in-use') {
-      // 심각한 오류가 아니면 그냥 로그인 화면 보여줌
-    }
-  });
+  // 로그인 화면 없이 바로 입장
+  hideLoginOverlay();
+  document.getElementById('signOutBtn').style.display = 'none';
 
-  firebase.auth().onAuthStateChanged(user => {
-    if (user) {
-      hideLoginOverlay();
-      updateUserProfile(user);
-      if (firebaseDB) {
-        firebaseDB.ref(`users/${user.uid}/data`).on('value', snapshot => {
-          if (isSyncing) return;
-          const val = snapshot.val();
-          if (val) {
-            state.data = { ...state.data, ...val };
-            storage.save();
-            updateTaskBadge();
-            navigate(state.view);
-          }
-        });
-        firebaseDB.ref(`users/${user.uid}/sms_queue`).on('child_added', snapshot => {
-          const sms = snapshot.val();
-          if (!sms || sms.processed) return;
-          const expense = parseSMSToExpense(sms.body || sms.text || '');
-          if (expense) {
-            const isDup = state.data.expenses.some(e =>
-              e.amount === expense.amount && e.description === expense.description && e.date === expense.date
-            );
-            if (!isDup) {
-              state.data.expenses.push(expense);
-              storage.save();
-              toast(`💳 ${expense.description} ${formatMoney(expense.amount)} 자동 기입!`, 'info');
-              if (state.view === 'expenses') expenses();
-              if (state.view === 'dashboard') dashboard();
-            }
-          }
-          snapshot.ref.update({ processed: true });
-        });
+  // 프로필 기본값
+  const savedName = localStorage.getItem('userDisplayName') || 'My Space';
+  const nameEl  = document.getElementById('userName');
+  const emailEl = document.getElementById('userEmail');
+  const avatarEl = document.getElementById('userAvatar');
+  if (nameEl) nameEl.textContent = savedName;
+  if (emailEl) emailEl.textContent = '개인 대시보드';
+  if (avatarEl) avatarEl.textContent = '✦';
+
+  // Firebase 실시간 동기화 (기기 ID 기반)
+  if (firebaseDB) {
+    const dbRef = firebaseDB.ref(`devices/${deviceId}/data`);
+
+    // 데이터 불러오기
+    dbRef.once('value').then(snapshot => {
+      const val = snapshot.val();
+      if (val) {
+        state.data = { ...state.data, ...val };
+        storage.save();
+        updateTaskBadge();
+        navigate(state.view);
       }
-      document.getElementById('signOutBtn').style.display = 'flex';
-    } else {
-      showLoginOverlay();
-      document.getElementById('signOutBtn').style.display = 'none';
-      resetUserProfile();
-    }
-  });
+    });
+
+    // SMS 큐 감지
+    firebaseDB.ref(`devices/${deviceId}/sms_queue`).on('child_added', snapshot => {
+      const sms = snapshot.val();
+      if (!sms || sms.processed) return;
+      const expense = parseSMSToExpense(sms.body || sms.text || '');
+      if (expense) {
+        const isDup = state.data.expenses.some(e =>
+          e.amount === expense.amount && e.description === expense.description && e.date === expense.date
+        );
+        if (!isDup) {
+          state.data.expenses.push(expense);
+          storage.save();
+          toast(`💳 ${expense.description} ${formatMoney(expense.amount)} 자동 기입!`, 'info');
+          if (state.view === 'expenses') expenses();
+          if (state.view === 'dashboard') dashboard();
+        }
+      }
+      snapshot.ref.update({ processed: true });
+    });
+
+    // 저장 시 Firebase에도 백업
+    const originalSave = storage.save.bind(storage);
+    storage.save = function() {
+      originalSave();
+      if (!isSyncing) {
+        dbRef.set(state.data).catch(e => console.warn('Firebase 저장 실패:', e));
+      }
+    };
+
+    console.log('✅ 기기 ID 동기화 모드:', deviceId);
+  }
 }
 
 function signInWithGoogle() {
-  if (typeof firebase === 'undefined' || !firebase.auth) {
-    alert('Firebase가 아직 로드되지 않았습니다. 잠시 후 다시 시도해주세요.');
-    return;
-  }
-  const btn = document.getElementById('googleLoginBtn');
-  if (btn) { btn.textContent = '구글 로그인 페이지로 이동 중...'; btn.disabled = true; }
-
-  const provider = new firebase.auth.GoogleAuthProvider();
-  firebase.auth().signInWithRedirect(provider);
+  toast('현재 자동 동기화 모드로 작동 중입니다.', 'info');
 }
 
 
