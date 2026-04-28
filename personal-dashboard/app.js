@@ -963,6 +963,7 @@ function changeHabitWeek(off) { state.habitWeekOff += off; habits(); }
 function toggleHabit(habitId, iso) {
   const h = state.data.habits.find(x=>x.id===habitId);
   if (!h) return;
+  if (!Array.isArray(h.completedDates)) h.completedDates = [];
   const idx = h.completedDates.indexOf(iso);
   if (idx>=0) h.completedDates.splice(idx,1); else h.completedDates.push(iso);
   storage.save();
