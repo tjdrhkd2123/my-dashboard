@@ -1472,6 +1472,18 @@ function setupGoogleAuth() {
   if (typeof firebase === 'undefined' || !firebase.auth) { hideLoginOverlay(); return; }
   firebase.auth().languageCode = 'ko';
 
+  // 리다이렉트 방식 결과 처리 (구글에서 돌아왔을 때)
+  firebase.auth().getRedirectResult().then(result => {
+    if (result && result.user) {
+      console.log('✅ 리다이렉트 로그인 성공:', result.user.email);
+    }
+  }).catch(err => {
+    console.error('리다이렉트 결과 오류:', err);
+    if (err.code !== 'auth/credential-already-in-use') {
+      // 심각한 오류가 아니면 그냥 로그인 화면 보여줌
+    }
+  });
+
   firebase.auth().onAuthStateChanged(user => {
     if (user) {
       hideLoginOverlay();
@@ -1521,29 +1533,10 @@ function signInWithGoogle() {
     return;
   }
   const btn = document.getElementById('googleLoginBtn');
-  if (btn) { btn.textContent = '구글 로그인 창 띄우는 중...'; btn.disabled = true; }
+  if (btn) { btn.textContent = '구글 로그인 페이지로 이동 중...'; btn.disabled = true; }
 
   const provider = new firebase.auth.GoogleAuthProvider();
-  
-  // 팝업이 무한정 대기하는 것을 방지하기 위한 타임아웃
-  const timeoutId = setTimeout(() => {
-    if (btn) {
-      btn.innerHTML = '로그인 창 열기 실패 (다시 시도)';
-      btn.disabled = false;
-    }
-  }, 10000);
-
-  firebase.auth().signInWithPopup(provider).then(() => {
-    clearTimeout(timeoutId);
-    if (btn) btn.innerHTML = '로그인 성공!';
-  }).catch(err => {
-    clearTimeout(timeoutId);
-    console.error('로그인 오류:', err);
-    if (btn) { btn.innerHTML = `Google 계정으로 로그인 (다시 시도)`; btn.disabled = false; }
-    if (err.code !== 'auth/popup-closed-by-user') {
-      alert('로그인에 실패했습니다: ' + err.message + '\n(팝업 차단이 설정되어 있다면 해제해주세요!)');
-    }
-  });
+  firebase.auth().signInWithRedirect(provider);
 }
 
 
