@@ -1477,7 +1477,8 @@ function setupNoAuthMode() {
 
   // 로그인 화면 없이 바로 입장
   hideLoginOverlay();
-  document.getElementById('signOutBtn').style.display = 'none';
+  const signOutBtn = document.getElementById('signOutBtn');
+  if (signOutBtn) signOutBtn.style.display = 'none';
 
   // 프로필 기본값
   const savedName = localStorage.getItem('userDisplayName') || 'My Space';
@@ -1488,11 +1489,15 @@ function setupNoAuthMode() {
   if (emailEl) emailEl.textContent = '개인 대시보드';
   if (avatarEl) avatarEl.textContent = '✦';
 
-  // Firebase 실시간 동기화 (기기 ID 기반)
+  // ✅ 즉시 로컬 데이터로 화면 렌더링 (Firebase 기다리지 않음)
+  updateTaskBadge();
+  navigate(state.view);
+
+  // Firebase 백그라운드 동기화 (실패해도 앱은 정상 작동)
   if (firebaseDB) {
     const dbRef = firebaseDB.ref(`devices/${deviceId}/data`);
 
-    // 데이터 불러오기
+    // 백그라운드에서 Firebase 데이터 불러오기
     dbRef.once('value').then(snapshot => {
       const val = snapshot.val();
       if (val) {
@@ -1500,7 +1505,11 @@ function setupNoAuthMode() {
         storage.save();
         updateTaskBadge();
         navigate(state.view);
+        console.log('✅ Firebase 데이터 동기화 완료');
       }
+    }).catch(e => {
+      console.warn('Firebase 읽기 실패 (로컬 모드로 작동):', e.message);
+      setSyncStatus(false);
     });
 
     // SMS 큐 감지
