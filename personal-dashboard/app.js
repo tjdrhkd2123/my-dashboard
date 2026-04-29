@@ -143,22 +143,26 @@ const PAGE_TITLES = {
 };
 
 function navigate(view) {
-  state.view = view;
+  try {
+    state.view = view;
 
-  document.querySelectorAll('.nav-link').forEach(l => {
-    l.classList.toggle('active', l.dataset.view === view);
-  });
+    document.querySelectorAll('.nav-link').forEach(l => {
+      l.classList.toggle('active', l.dataset.view === view);
+    });
 
-  document.getElementById('pageTitle').textContent = PAGE_TITLES[view] ?? view;
+    const pageTitleEl = document.getElementById('pageTitle');
+    if (pageTitleEl) pageTitleEl.textContent = PAGE_TITLES[view] ?? view;
 
-  const RENDERS = {
-    dashboard, tasks, expenses, notes, habits, calendar, bookmarks
-  };
-  const fn = RENDERS[view];
-  if (fn) fn();
+    const RENDERS = {
+      dashboard, tasks, expenses, notes, habits, calendar, bookmarks
+    };
+    const fn = RENDERS[view];
+    if (fn) fn();
 
-  // Close mobile sidebar
-  closeMobileSidebar();
+    closeMobileSidebar();
+  } catch(e) {
+    console.error('navigate 오류:', e);
+  }
 }
 
 // ==========================================
@@ -1396,9 +1400,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const qaBtn  = document.getElementById('quickAddBtn');
   const qaMenu = document.getElementById('quickAddMenu');
 
-  qaBtn.addEventListener('click', e => { e.stopPropagation(); qaMenu.classList.toggle('open'); });
-  document.addEventListener('click', () => qaMenu.classList.remove('open'));
-  qaMenu.addEventListener('click', e => e.stopPropagation());
+  if (qaBtn) qaBtn.addEventListener('click', e => { e.stopPropagation(); qaMenu.classList.toggle('open'); });
+  document.addEventListener('click', () => qaMenu && qaMenu.classList.remove('open'));
+  if (qaMenu) qaMenu.addEventListener('click', e => e.stopPropagation());
 
   document.querySelectorAll('.quick-add-item').forEach(item => {
     item.addEventListener('click', () => {
@@ -1413,17 +1417,31 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Modal close
-  document.getElementById('modalClose').addEventListener('click', closeModal);
-  document.getElementById('modalOverlay').addEventListener('click', e => { if (e.target===e.currentTarget) closeModal(); });
+  const modalClose = document.getElementById('modalClose');
+  const modalOverlay = document.getElementById('modalOverlay');
+  if (modalClose) modalClose.addEventListener('click', closeModal);
+  if (modalOverlay) modalOverlay.addEventListener('click', e => { if (e.target===e.currentTarget) closeModal(); });
   document.addEventListener('keydown', e => { if (e.key==='Escape') closeModal(); });
 
   // Mobile sidebar
-  document.getElementById('mobileMenuBtn').addEventListener('click', openMobileSidebar);
-  document.getElementById('sidebarClose').addEventListener('click', closeMobileSidebar);
-  document.getElementById('sidebarOverlay').addEventListener('click', closeMobileSidebar);
+  const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+  const sidebarClose = document.getElementById('sidebarClose');
+  const sidebarOverlay = document.getElementById('sidebarOverlay');
+  if (mobileMenuBtn) mobileMenuBtn.addEventListener('click', openMobileSidebar);
+  if (sidebarClose) sidebarClose.addEventListener('click', closeMobileSidebar);
+  if (sidebarOverlay) sidebarOverlay.addEventListener('click', closeMobileSidebar);
 
   // Update date every minute
   setInterval(updateDate, 60000);
+
+  // 안전장치: 2초 후에도 로딩 중이면 강제 렌더링
+  setTimeout(() => {
+    const vc = document.getElementById('viewContainer');
+    if (vc && vc.querySelector('.loading-screen')) {
+      console.warn('로딩 타임아웃 - 강제 렌더링');
+      navigate(state.view);
+    }
+  }, 2000);
 
   // Firebase 초기화 및 실시간 동기화
   initFirebase();
@@ -1668,15 +1686,9 @@ function syncFromFirebase() {
   });
 }
 
-// Firebase에 데이터 저장 (원래 storage.save에 연결)
-const _origSave = storage.save.bind(storage);
-storage.save = function() {
-  _origSave();
-  if (!firebaseDB) return;
-  isSyncing = true;
-  firebaseDB.ref('dashboard/data').set(state.data)
-    .finally(() => { setTimeout(() => { isSyncing = false; }, 500); });
-};
+// ==========================================
+// ── Firebase 전역 저장 동기화는 setupNoAuthMode에서 처리
+// ==========================================
 
 // ==========================================
 // ── SMS 자동 파싱 엔진 ────────────────────
