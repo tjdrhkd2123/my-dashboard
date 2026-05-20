@@ -84,7 +84,54 @@
       </ul>
     </div>
 
-    <div class="sidebar-footer">
+    <div class="nav-section">
+      <p class="nav-label">자기관리</p>
+      <ul class="nav-list">
+        <li class="nav-item">
+          <a href="#" class="nav-link" data-view="pomodoro" id="nav-pomodoro">
+            <i class="fas fa-clock nav-icon"></i>
+            <span class="nav-text">포모도로</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="#" class="nav-link" data-view="mood" id="nav-mood">
+            <i class="fas fa-smile nav-icon"></i>
+            <span class="nav-text">무드 트래커</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="#" class="nav-link" data-view="goals" id="nav-goals">
+            <i class="fas fa-bullseye nav-icon"></i>
+            <span class="nav-text">목표 관리</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="#" class="nav-link" data-view="routine" id="nav-routine">
+            <i class="fas fa-list-check nav-icon"></i>
+            <span class="nav-text">루틴</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="#" class="nav-link" data-view="health" id="nav-health">
+            <i class="fas fa-heart nav-icon"></i>
+            <span class="nav-text">건강</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="#" class="nav-link" data-view="learning" id="nav-learning">
+            <i class="fas fa-book nav-icon"></i>
+            <span class="nav-text">독서/학습</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="#" class="nav-link" data-view="report" id="nav-report">
+            <i class="fas fa-chart-bar nav-icon"></i>
+            <span class="nav-text">주간 리포트</span>
+          </a>
+        </li>
+      </ul>
+    </div>
+
       <div class="user-profile" id="userProfile" onclick="openProfileModal()">
         <div class="user-avatar" id="userAvatar">?</div>
         <div class="user-info">
@@ -192,7 +239,8 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <!-- Firebase Config & App -->
-  <script src="firebase-config.js?v=12"></script>
-  <script src="app.js?v=12"></script>
+  <script src="firebase-config.js?v=14"></script>
+  <script src="app.js?v=14"></script>
+  <script src="features.js?v=14"></script>
 </body>
 </html>

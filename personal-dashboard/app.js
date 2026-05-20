@@ -15,7 +15,14 @@ const state = {
     notes: [],
     habits: [],
     bookmarks: [],
-    events: []
+    events: [],
+    // 자기관리
+    moods: [],
+    goals: [],
+    routines: { morning: [], evening: [], completions: {} },
+    health: [],
+    learning: [],
+    pomodoro: { sessions: [], settings: { work: 25, shortBreak: 5, longBreak: 15 } }
   },
   calYear:  new Date().getFullYear(),
   calMonth: new Date().getMonth(),
@@ -139,7 +146,9 @@ function closeModal() {
 // ==========================================
 const PAGE_TITLES = {
   dashboard:'대시보드', tasks:'할 일 관리', expenses:'가계부',
-  notes:'메모', habits:'습관 트래커', calendar:'캘린더', bookmarks:'북마크'
+  notes:'메모', habits:'습관 트래커', calendar:'캘린더', bookmarks:'북마크',
+  pomodoro:'포모도로 타이머', mood:'무드 트래커', goals:'목표 관리',
+  routine:'루틴', health:'건강 기록', learning:'독서/학습', report:'주간 리포트'
 };
 
 function navigate(view) {
@@ -154,7 +163,8 @@ function navigate(view) {
     if (pageTitleEl) pageTitleEl.textContent = PAGE_TITLES[view] ?? view;
 
     const RENDERS = {
-      dashboard, tasks, expenses, notes, habits, calendar, bookmarks
+      dashboard, tasks, expenses, notes, habits, calendar, bookmarks,
+      pomodoro, mood, goals, routine, health, learning, report
     };
     const fn = RENDERS[view];
     if (fn) fn();
@@ -321,7 +331,7 @@ function dashboard() {
         ${state.data.habits.length > 0 ? `
           <div style="display:flex;flex-direction:column;gap:8px">
             ${state.data.habits.map(h => {
-              const done = h.completedDates.includes(today);
+              const done = (h.completedDates || []).includes(today);
               return `<div style="display:flex;align-items:center;gap:10px;padding:8px;background:var(--bg-surface);border-radius:var(--r-sm)">
                 <span style="font-size:18px">${h.icon}</span>
                 <span style="flex:1;font-size:13px;font-weight:500">${h.name}</span>
