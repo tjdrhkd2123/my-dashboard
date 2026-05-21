@@ -495,3 +495,134 @@ function report() {
     </div>
   </div>`;
 }
+
+// ── 설정 / 커스터마이즈 ───────────────────
+const ALL_MENUS = [
+  {view:'dashboard', label:'대시보드',    icon:'fa-home',         required:true},
+  {view:'tasks',     label:'할 일',       icon:'fa-check-circle'},
+  {view:'calendar',  label:'캘린더',      icon:'fa-calendar-alt'},
+  {view:'habits',    label:'습관 트래커', icon:'fa-fire'},
+  {view:'expenses',  label:'가계부',      icon:'fa-wallet'},
+  {view:'notes',     label:'메모',        icon:'fa-sticky-note'},
+  {view:'bookmarks', label:'북마크',      icon:'fa-bookmark'},
+  {view:'pomodoro',  label:'포모도로',    icon:'fa-clock'},
+  {view:'mood',      label:'무드 트래커', icon:'fa-smile'},
+  {view:'goals',     label:'목표 관리',   icon:'fa-bullseye'},
+  {view:'routine',   label:'루틴',        icon:'fa-list-check'},
+  {view:'health',    label:'건강',        icon:'fa-heart'},
+  {view:'learning',  label:'독서/학습',   icon:'fa-book'},
+  {view:'report',    label:'주간 리포트', icon:'fa-chart-bar'},
+];
+
+function getHiddenMenus() {
+  try { return JSON.parse(localStorage.getItem('myspace_hidden_menus')||'[]'); }
+  catch { return []; }
+}
+
+function applyMenuSettings() {
+  const hidden = getHiddenMenus();
+  ALL_MENUS.forEach(m => {
+    const el = document.getElementById('nav-'+m.view);
+    if (el) {
+      const li = el.closest('.nav-item');
+      if (li) li.style.display = hidden.includes(m.view) ? 'none' : '';
+    }
+  });
+}
+
+function settings() {
+  const vc = document.getElementById('viewContainer');
+  const hidden = getHiddenMenus();
+
+  vc.innerHTML = `
+  <div style="max-width:600px;margin:0 auto;padding:24px">
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-header"><h3 class="card-title"><i class="fas fa-bars"></i> 사이드바 메뉴 설정</h3></div>
+      <p style="font-size:13px;color:var(--text-sub);margin-bottom:16px">보고 싶은 메뉴만 켜두세요. 데이터는 삭제되지 않습니다.</p>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        ${ALL_MENUS.map(m => {
+          const on = !hidden.includes(m.view);
+          return `<div style="display:flex;align-items:center;justify-content:space-between;padding:12px;background:var(--bg-surface);border-radius:var(--r-sm)">
+            <div style="display:flex;align-items:center;gap:10px">
+              <i class="fas ${m.icon}" style="width:18px;color:var(--purple)"></i>
+              <span style="font-size:14px;font-weight:500">${m.label}</span>
+              ${m.required ? '<span style="font-size:10px;color:var(--text-dim);background:var(--bg-input);padding:2px 6px;border-radius:10px;margin-left:4px">필수</span>' : ''}
+            </div>
+            <button onclick="toggleMenu('${m.view}',${!on})" ${m.required?'disabled':''} style="width:48px;height:26px;border-radius:13px;border:none;background:${on?'var(--purple)':'var(--bg-input)'};cursor:${m.required?'not-allowed':'pointer'};position:relative;transition:background 0.3s;opacity:${m.required?'0.4':'1'}">
+              <span style="position:absolute;top:3px;left:${on?'25':'3'}px;width:20px;height:20px;border-radius:50%;background:white;transition:left 0.3s;display:block"></span>
+            </button>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-header"><h3 class="card-title"><i class="fas fa-user"></i> 이름 설정</h3></div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <input id="sDisplayName" class="form-input" value="${localStorage.getItem('userDisplayName')||''}" placeholder="표시할 이름을 입력하세요">
+        <button class="btn btn-primary" onclick="saveDisplayName()">저장</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><h3 class="card-title"><i class="fas fa-database"></i> 데이터 관리</h3></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-secondary" onclick="exportData()"><i class="fas fa-download"></i> 데이터 내보내기</button>
+        <button class="btn btn-secondary" onclick="importDataClick()"><i class="fas fa-upload"></i> 데이터 불러오기</button>
+        <input id="importFileInput" type="file" accept=".json" style="display:none" onchange="importData(this)">
+        <button class="btn" style="color:var(--red);background:transparent;border:1px solid var(--red)" onclick="clearAllData()"><i class="fas fa-trash"></i> 전체 초기화</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function toggleMenu(view, hide) {
+  const hidden = getHiddenMenus();
+  const idx = hidden.indexOf(view);
+  if (hide && idx < 0) hidden.push(view);
+  else if (!hide && idx >= 0) hidden.splice(idx, 1);
+  localStorage.setItem('myspace_hidden_menus', JSON.stringify(hidden));
+  applyMenuSettings();
+  if (state.view === 'settings') settings();
+}
+
+function saveDisplayName() {
+  const name = document.getElementById('sDisplayName').value.trim();
+  if (!name) { toast('이름을 입력해주세요', 'error'); return; }
+  localStorage.setItem('userDisplayName', name);
+  const el = document.getElementById('userName');
+  if (el) el.textContent = name;
+  toast('✅ 이름 저장됐어요!', 'success');
+}
+
+function exportData() {
+  const blob = new Blob([JSON.stringify(state.data, null, 2)], {type:'application/json'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'myspace_backup_'+todayISO()+'.json'; a.click();
+  toast('📦 내보내기 완료!', 'success');
+}
+
+function importDataClick() { document.getElementById('importFileInput').click(); }
+
+function importData(input) {
+  const file = input.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      state.data = {...state.data, ...JSON.parse(e.target.result)};
+      storage.save(); navigate(state.view);
+      toast('✅ 데이터 불러오기 완료!', 'success');
+    } catch { toast('파일 형식이 올바르지 않아요', 'error'); }
+  };
+  reader.readAsText(file);
+}
+
+function clearAllData() {
+  if (!confirm('⚠️ 모든 데이터가 삭제됩니다. 정말 초기화할까요?')) return;
+  if (!confirm('정말요? 되돌릴 수 없어요!')) return;
+  localStorage.removeItem('myspace_data_v1');
+  location.reload();
+}
+
+// 앱 시작 시 메뉴 설정 적용
+document.addEventListener('DOMContentLoaded', () => setTimeout(applyMenuSettings, 200));

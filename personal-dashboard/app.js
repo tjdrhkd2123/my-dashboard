@@ -148,7 +148,8 @@ const PAGE_TITLES = {
   dashboard:'대시보드', tasks:'할 일 관리', expenses:'가계부',
   notes:'메모', habits:'습관 트래커', calendar:'캘린더', bookmarks:'북마크',
   pomodoro:'포모도로 타이머', mood:'무드 트래커', goals:'목표 관리',
-  routine:'루틴', health:'건강 기록', learning:'독서/학습', report:'주간 리포트'
+  routine:'루틴', health:'건강 기록', learning:'독서/학습', report:'주간 리포트',
+  settings:'설정 / 커스터마이즈'
 };
 
 function navigate(view) {
@@ -164,7 +165,7 @@ function navigate(view) {
 
     const RENDERS = {
       dashboard, tasks, expenses, notes, habits, calendar, bookmarks,
-      pomodoro, mood, goals, routine, health, learning, report
+      pomodoro, mood, goals, routine, health, learning, report, settings
     };
     const fn = RENDERS[view];
     if (fn) fn();
