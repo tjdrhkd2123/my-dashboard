@@ -339,7 +339,21 @@ function goals() {
     </div>
     ${list.length ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px">
       ${list.map(g => {
-        const pct = Math.min(100, Math.round((g.current/g.target)*100));
+        let pct = 0;
+        if (g.start !== undefined && g.start !== g.target) {
+          if (g.start > g.target) { // 감소 목표 (다이어트 등)
+            if (g.current <= g.target) pct = 100;
+            else if (g.current >= g.start) pct = 0;
+            else pct = Math.round(((g.start - g.current) / (g.start - g.target)) * 100);
+          } else { // 증가 목표
+            if (g.current >= g.target) pct = 100;
+            else if (g.current <= g.start) pct = 0;
+            else pct = Math.round(((g.current - g.start) / (g.target - g.start)) * 100);
+          }
+        } else {
+          // 레거시 (시작치 없음)
+          pct = Math.min(100, Math.round((g.current/g.target)*100));
+        }
         const c = pct>=100?'#22c55e':pct>=50?'#06b6d4':'#8b5cf6';
         return `<div class="card">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
@@ -366,10 +380,11 @@ function openAddGoalModal() {
     <div class="form-group"><label class="form-label">목표 제목</label><input id="fGTitle" class="form-input" placeholder="예) 책 12권 읽기"></div>
     <div class="form-group"><label class="form-label">카테고리</label><select id="fGCat" class="form-input">${cats.map(c=>`<option>${c}</option>`).join('')}</select></div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+      <div class="form-group"><label class="form-label">시작치</label><input id="fGStart" class="form-input" type="number" value="0"></div>
       <div class="form-group"><label class="form-label">현재</label><input id="fGCur" class="form-input" type="number" value="0"></div>
       <div class="form-group"><label class="form-label">목표치</label><input id="fGTgt" class="form-input" type="number"></div>
-      <div class="form-group"><label class="form-label">단위</label><input id="fGUnit" class="form-input" placeholder="권"></div>
     </div>
+    <div class="form-group"><label class="form-label">단위 (선택)</label><input id="fGUnit" class="form-input" placeholder="kg, 권 등"></div>
     <div class="form-group"><label class="form-label">마감일</label><input id="fGDl" class="form-input" type="date"></div>
     <div class="form-actions"><button class="btn btn-secondary" onclick="closeModal()">취소</button><button class="btn btn-primary" onclick="addGoal()">추가</button></div>`);
 }
@@ -377,22 +392,35 @@ function openAddGoalModal() {
 function addGoal() {
   const title = document.getElementById('fGTitle').value.trim();
   const target = parseFloat(document.getElementById('fGTgt').value);
-  if (!title || !target) { toast('제목과 목표치를 입력해주세요', 'error'); return; }
+  if (!title || isNaN(target)) { toast('제목과 목표치를 입력해주세요', 'error'); return; }
   if (!state.data.goals) state.data.goals = [];
-  state.data.goals.push({id:uid(),title,category:document.getElementById('fGCat').value,current:parseFloat(document.getElementById('fGCur').value)||0,target,unit:document.getElementById('fGUnit').value,deadline:document.getElementById('fGDl').value});
+  state.data.goals.push({
+    id:uid(), title,
+    category:document.getElementById('fGCat').value,
+    start:parseFloat(document.getElementById('fGStart').value)||0,
+    current:parseFloat(document.getElementById('fGCur').value)||0,
+    target,
+    unit:document.getElementById('fGUnit').value,
+    deadline:document.getElementById('fGDl').value
+  });
   storage.save(); closeModal(); goals(); toast('🎯 목표 추가됨!','success');
 }
 
 function openEditGoalModal(id) {
   const g = (state.data.goals||[]).find(x=>x.id===id); if (!g) return;
+  const start = g.start !== undefined ? g.start : 0;
   openModal('✏️ 목표 수정', `
-    <div class="form-group"><label class="form-label">현재 진행 (${g.unit||''})</label><input id="fGEC" class="form-input" type="number" value="${g.current}"></div>
-    <div class="form-group"><label class="form-label">목표치</label><input id="fGET" class="form-input" type="number" value="${g.target}"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+      <div class="form-group"><label class="form-label">시작치</label><input id="fGES" class="form-input" type="number" value="${start}"></div>
+      <div class="form-group"><label class="form-label">현재 진행 (${g.unit||''})</label><input id="fGEC" class="form-input" type="number" value="${g.current}"></div>
+      <div class="form-group"><label class="form-label">최종 목표치</label><input id="fGET" class="form-input" type="number" value="${g.target}"></div>
+    </div>
     <div class="form-actions"><button class="btn btn-secondary" onclick="closeModal()">취소</button><button class="btn btn-primary" onclick="updateGoal('${id}')">저장</button></div>`);
 }
 
 function updateGoal(id) {
   const g = (state.data.goals||[]).find(x=>x.id===id); if (!g) return;
+  g.start = parseFloat(document.getElementById('fGES').value)||0;
   g.current = parseFloat(document.getElementById('fGEC').value)||0;
   g.target = parseFloat(document.getElementById('fGET').value)||g.target;
   storage.save(); closeModal(); goals(); toast('목표 업데이트 완료!','success');
