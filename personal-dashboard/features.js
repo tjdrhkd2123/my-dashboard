@@ -4,6 +4,7 @@
 
 // ── 포모도로 ──────────────────────────────
 let _pomTimer = null, _pomSecs = 25*60, _pomMode = 'work', _pomRunning = false, _pomAuto = false, _pomCycle = 0;
+let _pomIsIntervalMode = false, _pomIntervalIndex = 0;
 const POM_COLORS = {work:'#8b5cf6', shortBreak:'#06b6d4', longBreak:'#22c55e'};
 
 function pomodoro() {
@@ -12,31 +13,77 @@ function pomodoro() {
   const s = state.data.pomodoro;
   if (!s.sessions) s.sessions = [];
   if (!s.settings) s.settings = {work:25,shortBreak:5,longBreak:15};
+  if (!s.sequence) s.sequence = [
+    {id:uid(), type:'work', duration:50},
+    {id:uid(), type:'shortBreak', duration:10},
+    {id:uid(), type:'work', duration:50},
+    {id:uid(), type:'longBreak', duration:30}
+  ];
   const cfg = s.settings;
+  const seq = s.sequence;
   const today = todayISO();
   const todaySess = s.sessions.filter(x => x.date === today);
   const fmt = n => String(Math.floor(n/60)).padStart(2,'0')+':'+String(n%60).padStart(2,'0');
   const modeLabel = {work:`집중 ${cfg.work}분`, shortBreak:`짧은 휴식 ${cfg.shortBreak}분`, longBreak:`긴 휴식 ${cfg.longBreak}분`};
+  const typeLabel = {work:'🎯 집중', shortBreak:'☕ 짧은 휴식', longBreak:'🛌 긴 휴식'};
 
   vc.innerHTML = `
-  <div style="max-width:560px;margin:0 auto;padding:24px">
+  <div style="max-width:560px;margin:0 auto;padding:24px;padding-bottom:100px">
+    <div style="display:flex;justify-content:center;gap:12px;margin-bottom:16px">
+      <button class="btn btn-${!_pomIsIntervalMode?'primary':'secondary'} btn-sm" onclick="switchPomMode(false)"><i class="fas fa-clock"></i> 클래식 모드</button>
+      <button class="btn btn-${_pomIsIntervalMode?'primary':'secondary'} btn-sm" onclick="switchPomMode(true)"><i class="fas fa-list-ol"></i> 세트 모드</button>
+    </div>
+
     <div class="card" style="text-align:center;padding:40px 24px;margin-bottom:16px">
-      <div style="display:flex;justify-content:center;gap:8px;margin-bottom:32px;flex-wrap:wrap">
-        ${Object.keys(modeLabel).map(m=>`<button onclick="setPomMode('${m}')" class="btn btn-${_pomMode===m?'primary':'secondary'} btn-sm">${modeLabel[m]}</button>`).join('')}
-      </div>
-      <div id="pomDisplay" style="font-size:80px;font-weight:800;letter-spacing:4px;color:${POM_COLORS[_pomMode]};margin-bottom:28px;font-variant-numeric:tabular-nums">${fmt(_pomSecs)}</div>
+      ${!_pomIsIntervalMode ? `
+        <div style="display:flex;justify-content:center;gap:8px;margin-bottom:32px;flex-wrap:wrap">
+          ${Object.keys(modeLabel).map(m=>`<button onclick="setPomMode('${m}')" class="btn btn-${_pomMode===m?'primary':'secondary'} btn-sm">${modeLabel[m]}</button>`).join('')}
+        </div>
+      ` : `
+        <div style="margin-bottom:24px;font-size:15px;font-weight:600;color:var(--text-sub)">
+          현재 단계: <span style="color:var(--primary)">${_pomIntervalIndex+1} / ${seq.length}</span> (${typeLabel[seq[_pomIntervalIndex]?.type]||'종료'})
+        </div>
+      `}
+      <div id="pomDisplay" style="font-size:80px;font-weight:800;letter-spacing:4px;color:${POM_COLORS[_pomMode]||POM_COLORS.work};margin-bottom:28px;font-variant-numeric:tabular-nums">${fmt(_pomSecs)}</div>
       <div style="display:flex;justify-content:center;gap:12px">
         <button onclick="togglePom()" class="btn btn-primary"><i class="fas fa-${_pomRunning?'pause':'play'}"></i> ${_pomRunning?'일시정지':'시작'}</button>
         <button onclick="resetPom()" class="btn btn-secondary"><i class="fas fa-redo"></i> 리셋</button>
       </div>
+      
+      ${!_pomIsIntervalMode ? `
       <div style="margin-top:20px;font-size:13px;color:var(--text-sub)">
         <label style="cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
           <input type="checkbox" ${_pomAuto?'checked':''} onchange="_pomAuto=this.checked" style="accent-color:var(--primary)"> 
           자동 반복 모드 (집중 ${cfg.cycles||4}세트 후 긴 휴식)
         </label>
-      </div>
+      </div>` : ''}
+      
       <div style="margin-top:12px;font-size:13px;color:var(--text-dim)">오늘 완료 세션: <strong style="color:${POM_COLORS.work}">${todaySess.length}개</strong></div>
     </div>
+
+    ${_pomIsIntervalMode ? `
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-header">
+        <h3 class="card-title"><i class="fas fa-list"></i> 인터벌 세트 리스트</h3>
+        <button class="btn btn-secondary btn-sm" onclick="openAddSeqModal()"><i class="fas fa-plus"></i> 단계 추가</button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        ${seq.map((step, i) => `
+          <div style="display:flex;align-items:center;gap:10px;padding:12px;background:${i===_pomIntervalIndex?'var(--primary-alpha)':'var(--bg-surface)'};border:1px solid ${i===_pomIntervalIndex?'var(--primary)':'transparent'};border-radius:var(--r-sm)">
+            <span style="font-weight:700;color:var(--text-dim);width:20px">${i+1}.</span>
+            <span style="flex:1;font-size:14px;color:${POM_COLORS[step.type]}">${typeLabel[step.type]}</span>
+            <span style="font-weight:600;font-size:14px">${step.duration}분</span>
+            <div style="display:flex;gap:4px;margin-left:8px">
+              <button class="icon-btn" onclick="moveSeq(${i}, -1)" ${i===0?'disabled style="opacity:0.3"':''}><i class="fas fa-arrow-up"></i></button>
+              <button class="icon-btn" onclick="moveSeq(${i}, 1)" ${i===seq.length-1?'disabled style="opacity:0.3"':''}><i class="fas fa-arrow-down"></i></button>
+              <button class="icon-btn del" onclick="deleteSeq(${i})"><i class="fas fa-times"></i></button>
+            </div>
+          </div>
+        `).join('')}
+        ${!seq.length ? '<div class="empty-state"><p>단계를 추가하여 나만의 세트를 만들어보세요.</p></div>' : ''}
+      </div>
+    </div>` : ''}
+
     <div class="card">
       <div class="card-header"><h3 class="card-title"><i class="fas fa-history"></i> 오늘의 세션</h3></div>
       ${todaySess.length ? todaySess.map((x,i)=>`
@@ -47,6 +94,26 @@ function pomodoro() {
         </div>`).join('') : '<div class="empty-state"><i class="fas fa-clock"></i><p>아직 완료한 세션이 없어요</p></div>'}
     </div>
   </div>`;
+}
+
+function switchPomMode(isInterval) {
+  _pomIsIntervalMode = isInterval;
+  clearInterval(_pomTimer); _pomRunning = false;
+  
+  const s = state.data.pomodoro;
+  if (isInterval) {
+    _pomIntervalIndex = 0;
+    if (s.sequence && s.sequence.length > 0) {
+      _pomMode = s.sequence[0].type;
+      _pomSecs = s.sequence[0].duration * 60;
+    } else {
+      _pomSecs = 0;
+    }
+  } else {
+    _pomMode = 'work';
+    _pomSecs = (s.settings?.work || 25) * 60;
+  }
+  if (state.view==='pomodoro') pomodoro();
 }
 
 function _pomTick() {
@@ -62,25 +129,52 @@ function _pomTick() {
     if (!s.sessions) s.sessions = [];
     const cfg = s.settings;
 
-    if (_pomMode === 'work') {
-      s.sessions.push({date:todayISO(), duration:cfg.work, task:'집중 세션'});
-      storage.save();
-      _pomCycle++;
-      toast('🍅 집중 완료! 잠시 쉬어가세요.', 'success');
-      
-      if (_pomAuto) {
-        _pomMode = (_pomCycle % (cfg.cycles||4) === 0) ? 'longBreak' : 'shortBreak';
-        _pomSecs = cfg[_pomMode] * 60;
-        _pomRunning = true;
-        _pomTimer = setInterval(_pomTick, 1000);
+    if (!_pomIsIntervalMode) {
+      // 클래식 모드
+      if (_pomMode === 'work') {
+        s.sessions.push({date:todayISO(), duration:cfg.work, task:'집중 세션'});
+        storage.save();
+        _pomCycle++;
+        toast('🍅 집중 완료! 잠시 쉬어가세요.', 'success');
+        
+        if (_pomAuto) {
+          _pomMode = (_pomCycle % (cfg.cycles||4) === 0) ? 'longBreak' : 'shortBreak';
+          _pomSecs = cfg[_pomMode] * 60;
+          _pomRunning = true;
+          _pomTimer = setInterval(_pomTick, 1000);
+        }
+      } else {
+        toast('☕ 휴식 완료! 다시 집중해봐요.', 'info');
+        if (_pomAuto) {
+          _pomMode = 'work';
+          _pomSecs = cfg.work * 60;
+          _pomRunning = true;
+          _pomTimer = setInterval(_pomTick, 1000);
+        }
       }
     } else {
-      toast('☕ 휴식 완료! 다시 집중해봐요.', 'info');
-      if (_pomAuto) {
-        _pomMode = 'work';
-        _pomSecs = cfg.work * 60;
+      // 인터벌 세트 모드
+      const seq = s.sequence || [];
+      const currentStep = seq[_pomIntervalIndex];
+      if (currentStep && currentStep.type === 'work') {
+        s.sessions.push({date:todayISO(), duration:currentStep.duration, task:'인터벌 세트 완료'});
+        storage.save();
+      }
+      toast(currentStep?.type==='work' ? '🍅 집중 끝! 다음 단계로 넘어갑니다.' : '☕ 휴식 끝! 다음 단계 시작!', 'success');
+      
+      _pomIntervalIndex++;
+      if (_pomIntervalIndex < seq.length) {
+        _pomMode = seq[_pomIntervalIndex].type;
+        _pomSecs = seq[_pomIntervalIndex].duration * 60;
         _pomRunning = true;
         _pomTimer = setInterval(_pomTick, 1000);
+      } else {
+        toast('🎉 모든 세트가 종료되었습니다!', 'success');
+        _pomIntervalIndex = 0;
+        if (seq.length > 0) {
+          _pomMode = seq[0].type;
+          _pomSecs = seq[0].duration * 60;
+        }
       }
     }
     if (state.view==='pomodoro') pomodoro();
@@ -88,6 +182,10 @@ function _pomTick() {
 }
 
 function togglePom() {
+  const s = state.data.pomodoro;
+  if (_pomIsIntervalMode && (!s.sequence || s.sequence.length === 0)) {
+    toast('세트를 추가해주세요', 'error'); return;
+  }
   if (_pomRunning) { clearInterval(_pomTimer); _pomRunning = false; }
   else {
     _pomRunning = true;
@@ -98,9 +196,65 @@ function togglePom() {
 
 function resetPom() {
   clearInterval(_pomTimer); _pomRunning = false;
-  const cfg = (state.data.pomodoro && state.data.pomodoro.settings) || {work:25,shortBreak:5,longBreak:15};
-  _pomSecs = {work:cfg.work,shortBreak:cfg.shortBreak,longBreak:cfg.longBreak}[_pomMode]*60;
+  const s = state.data.pomodoro;
+  if (_pomIsIntervalMode) {
+    _pomIntervalIndex = 0;
+    if (s.sequence && s.sequence.length > 0) {
+      _pomMode = s.sequence[0].type;
+      _pomSecs = s.sequence[0].duration * 60;
+    } else {
+      _pomSecs = 0;
+    }
+  } else {
+    const cfg = s.settings || {work:25,shortBreak:5,longBreak:15};
+    _pomSecs = {work:cfg.work,shortBreak:cfg.shortBreak,longBreak:cfg.longBreak}[_pomMode]*60;
+  }
   if (state.view==='pomodoro') pomodoro();
+}
+
+function openAddSeqModal() {
+  openModal('세트 단계 추가', `
+    <div class="form-group">
+      <label class="form-label">종류</label>
+      <select id="fSeqType" class="form-input">
+        <option value="work">🎯 집중</option>
+        <option value="shortBreak">☕ 짧은 휴식</option>
+        <option value="longBreak">🛌 긴 휴식</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">시간 (분)</label>
+      <input id="fSeqTime" type="number" class="form-input" value="50">
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">취소</button>
+      <button class="btn btn-primary" onclick="addSeqItem()">추가</button>
+    </div>
+  `);
+}
+
+function addSeqItem() {
+  const type = document.getElementById('fSeqType').value;
+  const duration = parseInt(document.getElementById('fSeqTime').value) || 25;
+  const s = state.data.pomodoro;
+  if (!s.sequence) s.sequence = [];
+  s.sequence.push({id:uid(), type, duration});
+  storage.save(); closeModal(); resetPom();
+}
+
+function deleteSeq(idx) {
+  state.data.pomodoro.sequence.splice(idx, 1);
+  if (_pomIntervalIndex >= state.data.pomodoro.sequence.length) _pomIntervalIndex = 0;
+  storage.save(); resetPom();
+}
+
+function moveSeq(idx, dir) {
+  const seq = state.data.pomodoro.sequence;
+  if (idx + dir < 0 || idx + dir >= seq.length) return;
+  const temp = seq[idx];
+  seq[idx] = seq[idx+dir];
+  seq[idx+dir] = temp;
+  storage.save(); resetPom();
 }
 
 function setPomMode(m) {
