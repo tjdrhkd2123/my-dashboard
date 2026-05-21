@@ -3,7 +3,7 @@
    ========================================== */
 
 // ── 포모도로 ──────────────────────────────
-let _pomTimer = null, _pomSecs = 25*60, _pomMode = 'work', _pomRunning = false;
+let _pomTimer = null, _pomSecs = 25*60, _pomMode = 'work', _pomRunning = false, _pomAuto = false, _pomCycle = 0;
 const POM_COLORS = {work:'#8b5cf6', shortBreak:'#06b6d4', longBreak:'#22c55e'};
 
 function pomodoro() {
@@ -29,7 +29,13 @@ function pomodoro() {
         <button onclick="togglePom()" class="btn btn-primary"><i class="fas fa-${_pomRunning?'pause':'play'}"></i> ${_pomRunning?'일시정지':'시작'}</button>
         <button onclick="resetPom()" class="btn btn-secondary"><i class="fas fa-redo"></i> 리셋</button>
       </div>
-      <div style="margin-top:20px;font-size:13px;color:var(--text-sub)">오늘 완료 세션: <strong style="color:${POM_COLORS.work}">${todaySess.length}개</strong></div>
+      <div style="margin-top:20px;font-size:13px;color:var(--text-sub)">
+        <label style="cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
+          <input type="checkbox" ${_pomAuto?'checked':''} onchange="_pomAuto=this.checked" style="accent-color:var(--primary)"> 
+          자동 반복 모드 (집중 ${cfg.cycles||4}세트 후 긴 휴식)
+        </label>
+      </div>
+      <div style="margin-top:12px;font-size:13px;color:var(--text-dim)">오늘 완료 세션: <strong style="color:${POM_COLORS.work}">${todaySess.length}개</strong></div>
     </div>
     <div class="card">
       <div class="card-header"><h3 class="card-title"><i class="fas fa-history"></i> 오늘의 세션</h3></div>
@@ -43,27 +49,49 @@ function pomodoro() {
   </div>`;
 }
 
+function _pomTick() {
+  _pomSecs--;
+  const d = document.getElementById('pomDisplay');
+  if (d) d.textContent = String(Math.floor(_pomSecs/60)).padStart(2,'0')+':'+String(_pomSecs%60).padStart(2,'0');
+  
+  if (_pomSecs <= 0) {
+    clearInterval(_pomTimer);
+    _pomRunning = false;
+    const s = state.data.pomodoro;
+    if (!s.settings) s.settings = {work:25,shortBreak:5,longBreak:15,cycles:4};
+    if (!s.sessions) s.sessions = [];
+    const cfg = s.settings;
+
+    if (_pomMode === 'work') {
+      s.sessions.push({date:todayISO(), duration:cfg.work, task:'집중 세션'});
+      storage.save();
+      _pomCycle++;
+      toast('🍅 집중 완료! 잠시 쉬어가세요.', 'success');
+      
+      if (_pomAuto) {
+        _pomMode = (_pomCycle % (cfg.cycles||4) === 0) ? 'longBreak' : 'shortBreak';
+        _pomSecs = cfg[_pomMode] * 60;
+        _pomRunning = true;
+        _pomTimer = setInterval(_pomTick, 1000);
+      }
+    } else {
+      toast('☕ 휴식 완료! 다시 집중해봐요.', 'info');
+      if (_pomAuto) {
+        _pomMode = 'work';
+        _pomSecs = cfg.work * 60;
+        _pomRunning = true;
+        _pomTimer = setInterval(_pomTick, 1000);
+      }
+    }
+    if (state.view==='pomodoro') pomodoro();
+  }
+}
+
 function togglePom() {
   if (_pomRunning) { clearInterval(_pomTimer); _pomRunning = false; }
   else {
     _pomRunning = true;
-    _pomTimer = setInterval(() => {
-      _pomSecs--;
-      const d = document.getElementById('pomDisplay');
-      if (d) d.textContent = String(Math.floor(_pomSecs/60)).padStart(2,'0')+':'+String(_pomSecs%60).padStart(2,'0');
-      if (_pomSecs <= 0) {
-        clearInterval(_pomTimer); _pomRunning = false;
-        if (_pomMode === 'work') {
-          const s = state.data.pomodoro;
-          if (!s.settings) s.settings = {work:25,shortBreak:5,longBreak:15};
-          if (!s.sessions) s.sessions = [];
-          s.sessions.push({date:todayISO(), duration:s.settings.work, task:'집중 세션'});
-          storage.save();
-          toast('🍅 포모도로 완료! 잠시 쉬어가세요.', 'success');
-        } else toast('☕ 휴식 완료! 다시 집중해봐요.', 'info');
-        if (state.view==='pomodoro') pomodoro();
-      }
-    }, 1000);
+    _pomTimer = setInterval(_pomTick, 1000);
   }
   if (state.view==='pomodoro') pomodoro();
 }
@@ -640,11 +668,12 @@ function settings() {
       </div>
 
       <div style="margin-bottom:16px">
-        <label class="form-label" style="font-size:12px">포모도로 타이머 (분)</label>
+        <label class="form-label" style="font-size:12px">포모도로 타이머 (분) 및 세트 반복 횟수</label>
         <div style="display:flex;gap:10px">
           <input id="sPomWork" class="form-input" type="number" value="${(state.data.pomodoro?.settings?.work)||25}" placeholder="집중">
           <input id="sPomShort" class="form-input" type="number" value="${(state.data.pomodoro?.settings?.shortBreak)||5}" placeholder="짧은 휴식">
           <input id="sPomLong" class="form-input" type="number" value="${(state.data.pomodoro?.settings?.longBreak)||15}" placeholder="긴 휴식">
+          <input id="sPomCycles" class="form-input" type="number" value="${(state.data.pomodoro?.settings?.cycles)||4}" placeholder="세트 수 (예: 4)">
         </div>
       </div>
 
@@ -860,6 +889,7 @@ function saveAdvancedSettings() {
   state.data.pomodoro.settings.work = parseInt(document.getElementById('sPomWork').value) || 25;
   state.data.pomodoro.settings.shortBreak = parseInt(document.getElementById('sPomShort').value) || 5;
   state.data.pomodoro.settings.longBreak = parseInt(document.getElementById('sPomLong').value) || 15;
+  state.data.pomodoro.settings.cycles = parseInt(document.getElementById('sPomCycles').value) || 4;
   storage.save();
   
   // 포모도로 타이머 리셋 (진행 중일 수 있으므로)
