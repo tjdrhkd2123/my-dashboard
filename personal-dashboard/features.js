@@ -561,6 +561,11 @@ function applyMenuSettings() {
 
 function applyCustomBackground() {
   const bg = localStorage.getItem('myspace_bg') || '';
+  const isLight = localStorage.getItem('myspace_bg_light') === 'true';
+  
+  if (isLight) document.body.classList.add('light-theme');
+  else document.body.classList.remove('light-theme');
+
   if (bg) {
     if (bg.startsWith('http') || bg.startsWith('data:image')) {
       document.body.style.backgroundImage = `url('${bg}')`;
@@ -699,6 +704,22 @@ function clearAllData() {
 function saveBackground() {
   const bg = document.getElementById('sBackground').value.trim();
   localStorage.setItem('myspace_bg', bg);
+  
+  if (bg.startsWith('#')) {
+    let hex = bg.replace('#', '');
+    if (hex.length === 3) hex = hex.split('').map(x=>x+x).join('');
+    const r = parseInt(hex.substring(0,2), 16) || 0;
+    const g = parseInt(hex.substring(2,4), 16) || 0;
+    const b = parseInt(hex.substring(4,6), 16) || 0;
+    const brightness = (0.299*r + 0.587*g + 0.114*b);
+    localStorage.setItem('myspace_bg_light', brightness > 128 ? 'true' : 'false');
+  } else if (!bg) {
+    localStorage.removeItem('myspace_bg_light');
+  } else if (bg.startsWith('http')) {
+    // 외부 이미지 URL은 밝기 분석이 어려우므로 일단 기본 테마(어두움)로 설정
+    localStorage.removeItem('myspace_bg_light');
+  }
+
   applyCustomBackground();
   toast('🎨 배경이 적용되었습니다!', 'success');
 }
@@ -730,6 +751,27 @@ function uploadBackgroundImage(input) {
       const ctx = canvas.getContext('2d');
       ctx.drawImage(img, 0, 0, width, height);
       
+      // 이미지 밝기 분석 (전체 픽셀 샘플링)
+      try {
+        const imageData = ctx.getImageData(0, 0, width, height).data;
+        let r = 0, g = 0, b = 0, count = 0;
+        const step = 4 * 100; // 100픽셀 건너뛰며 샘플링
+        for (let i = 0; i < imageData.length; i += step) {
+          r += imageData[i];
+          g += imageData[i+1];
+          b += imageData[i+2];
+          count++;
+        }
+        if (count > 0) {
+          r /= count; g /= count; b /= count;
+          const brightness = (0.299*r + 0.587*g + 0.114*b);
+          localStorage.setItem('myspace_bg_light', brightness > 128 ? 'true' : 'false');
+        }
+      } catch (e) {
+        // CORS 문제 발생 시 무시
+        console.warn('Cannot analyze image brightness:', e);
+      }
+
       // 화질 70% JPEG로 압축해서 저장
       const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
       
