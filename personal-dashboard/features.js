@@ -179,9 +179,10 @@ function goals() {
 }
 
 function openAddGoalModal() {
+  const cats = (localStorage.getItem('myspace_gcats') || '건강,독서,재정,운동,학습,여행,기타').split(',').map(x=>x.trim()).filter(Boolean);
   openModal('🎯 목표 추가', `
     <div class="form-group"><label class="form-label">목표 제목</label><input id="fGTitle" class="form-input" placeholder="예) 책 12권 읽기"></div>
-    <div class="form-group"><label class="form-label">카테고리</label><select id="fGCat" class="form-input"><option>건강</option><option>독서</option><option>재정</option><option>운동</option><option>학습</option><option>여행</option><option>기타</option></select></div>
+    <div class="form-group"><label class="form-label">카테고리</label><select id="fGCat" class="form-input">${cats.map(c=>`<option>${c}</option>`).join('')}</select></div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
       <div class="form-group"><label class="form-label">현재</label><input id="fGCur" class="form-input" type="number" value="0"></div>
       <div class="form-group"><label class="form-label">목표치</label><input id="fGTgt" class="form-input" type="number"></div>
@@ -250,9 +251,12 @@ function routine() {
     </div>`;
   };
 
+  const r1 = localStorage.getItem('myspace_r1') || '아침 루틴';
+  const r2 = localStorage.getItem('myspace_r2') || '저녁 루틴';
+
   vc.innerHTML = `<div style="max-width:600px;margin:0 auto;padding:24px">
-    ${renderSection('morning','아침 루틴','sun')}
-    ${renderSection('evening','저녁 루틴','moon')}
+    ${renderSection('morning', r1, 'sun')}
+    ${renderSection('evening', r2, 'moon')}
   </div>`;
 }
 
@@ -265,7 +269,10 @@ function toggleRoutine(type, id) {
 }
 
 function openAddRoutineModal(type) {
-  openModal(`➕ ${type==='morning'?'아침':'저녁'} 루틴 추가`, `
+  const r1 = localStorage.getItem('myspace_r1') || '아침 루틴';
+  const r2 = localStorage.getItem('myspace_r2') || '저녁 루틴';
+  const label = type === 'morning' ? r1 : r2;
+  openModal(`➕ ${label} 추가`, `
     <div class="form-group"><label class="form-label">항목 이름</label><input id="fRName" class="form-input" placeholder="예) 스트레칭 10분"></div>
     <div class="form-group"><label class="form-label">아이콘 (이모지)</label><input id="fRIcon" class="form-input" placeholder="🧘" maxlength="2"></div>
     <div class="form-actions"><button class="btn btn-secondary" onclick="closeModal()">취소</button><button class="btn btn-primary" onclick="addRoutineItem('${type}')">추가</button></div>`);
@@ -290,6 +297,8 @@ function health() {
   const records = state.data.health || [];
   const todayRec = records.find(r=>r.date===today) || {};
   const recent = [...records].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,7);
+  const waterUnit = localStorage.getItem('myspace_water_unit') || '잔';
+  const waterStep = waterUnit === 'L' ? 0.1 : (waterUnit === 'ml' ? 100 : 1);
 
   vc.innerHTML = `
   <div style="max-width:680px;margin:0 auto;padding:24px">
@@ -297,11 +306,18 @@ function health() {
       <div class="card-header"><h3 class="card-title"><i class="fas fa-heart"></i> 오늘의 건강 기록</h3></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:8px 0">
         <div>
-          <label class="form-label">💧 물 섭취 (잔)</label>
+          <label class="form-label" style="display:flex;align-items:center;justify-content:space-between">
+            <span>💧 물 섭취</span>
+            <select style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);border-radius:4px;font-size:11px;padding:2px 4px;outline:none" onchange="localStorage.setItem('myspace_water_unit',this.value);health()">
+              <option value="잔" ${waterUnit==='잔'?'selected':''}>잔</option>
+              <option value="L" ${waterUnit==='L'?'selected':''}>L</option>
+              <option value="ml" ${waterUnit==='ml'?'selected':''}>ml</option>
+            </select>
+          </label>
           <div style="display:flex;align-items:center;gap:8px">
-            <button onclick="updateHealth('water',-1)" class="btn btn-secondary btn-sm">-</button>
+            <button onclick="updateHealth('water', -${waterStep})" class="btn btn-secondary btn-sm">-</button>
             <span id="waterCount" style="font-size:24px;font-weight:700;min-width:40px;text-align:center">${todayRec.water||0}</span>
-            <button onclick="updateHealth('water',1)" class="btn btn-primary btn-sm">+</button>
+            <button onclick="updateHealth('water', ${waterStep})" class="btn btn-primary btn-sm">+</button>
           </div>
         </div>
         <div>
@@ -321,7 +337,7 @@ function health() {
     <div class="card">
       <div class="card-header"><h3 class="card-title"><i class="fas fa-history"></i> 최근 기록</h3></div>
       ${recent.length ? `<div style="overflow-x:auto"><table style="width:100%;font-size:13px;border-collapse:collapse">
-        <tr style="color:var(--text-dim);font-size:11px"><th style="padding:8px;text-align:left">날짜</th><th style="padding:8px;text-align:center">💧</th><th style="padding:8px;text-align:center">😴</th><th style="padding:8px;text-align:center">🏃</th><th style="padding:8px;text-align:center">⚖️</th></tr>
+        <tr style="color:var(--text-dim);font-size:11px"><th style="padding:8px;text-align:left">날짜</th><th style="padding:8px;text-align:center">💧(${waterUnit})</th><th style="padding:8px;text-align:center">😴(h)</th><th style="padding:8px;text-align:center">🏃(m)</th><th style="padding:8px;text-align:center">⚖️(kg)</th></tr>
         ${recent.map(r=>`<tr style="border-top:1px solid var(--border)"><td style="padding:8px;color:var(--text-sub)">${r.date}</td><td style="padding:8px;text-align:center">${r.water||'-'}</td><td style="padding:8px;text-align:center">${r.sleep||'-'}</td><td style="padding:8px;text-align:center">${r.exercise||'-'}</td><td style="padding:8px;text-align:center">${r.weight||'-'}</td></tr>`).join('')}
       </table></div>` : '<div class="empty-state"><i class="fas fa-heartbeat"></i><p>건강 데이터를 기록해보세요</p></div>'}
     </div>
@@ -334,6 +350,9 @@ function updateHealth(field, delta) {
   let rec = state.data.health.find(r=>r.date===today);
   if (!rec) { rec = {date:today}; state.data.health.push(rec); }
   rec[field] = Math.max(0, (rec[field]||0) + delta);
+  if (field === 'water' && !Number.isInteger(delta)) {
+    rec[field] = Math.round(rec[field] * 10) / 10;
+  }
   storage.save();
   const el = document.getElementById(field+'Count');
   if (el) el.textContent = rec[field];
@@ -610,6 +629,34 @@ function settings() {
     </div>
 
     <div class="card" style="margin-bottom:16px">
+      <div class="card-header"><h3 class="card-title"><i class="fas fa-sliders-h"></i> 기능 세부 설정</h3></div>
+      
+      <div style="margin-bottom:16px">
+        <label class="form-label" style="font-size:12px">루틴 섹션 이름</label>
+        <div style="display:flex;gap:10px">
+          <input id="sRoutine1" class="form-input" value="${localStorage.getItem('myspace_r1')||'아침 루틴'}" placeholder="첫 번째 루틴">
+          <input id="sRoutine2" class="form-input" value="${localStorage.getItem('myspace_r2')||'저녁 루틴'}" placeholder="두 번째 루틴">
+        </div>
+      </div>
+
+      <div style="margin-bottom:16px">
+        <label class="form-label" style="font-size:12px">포모도로 타이머 (분)</label>
+        <div style="display:flex;gap:10px">
+          <input id="sPomWork" class="form-input" type="number" value="${(state.data.pomodoro?.settings?.work)||25}" placeholder="집중">
+          <input id="sPomShort" class="form-input" type="number" value="${(state.data.pomodoro?.settings?.shortBreak)||5}" placeholder="짧은 휴식">
+          <input id="sPomLong" class="form-input" type="number" value="${(state.data.pomodoro?.settings?.longBreak)||15}" placeholder="긴 휴식">
+        </div>
+      </div>
+
+      <div style="margin-bottom:16px">
+        <label class="form-label" style="font-size:12px">목표 카테고리 (쉼표로 구분)</label>
+        <input id="sGoalCats" class="form-input" value="${localStorage.getItem('myspace_gcats')||'건강,독서,재정,운동,학습,여행,기타'}" placeholder="건강,독서,재정...">
+      </div>
+
+      <button class="btn btn-primary" onclick="saveAdvancedSettings()">설정 저장</button>
+    </div>
+
+    <div class="card" style="margin-bottom:16px">
       <div class="card-header"><h3 class="card-title"><i class="fas fa-bars"></i> 사이드바 메뉴 설정</h3></div>
       <p style="font-size:13px;color:var(--text-sub);margin-bottom:16px">보고 싶은 메뉴를 켜고 끄거나, 이름을 직접 변경할 수 있습니다.</p>
       <div style="display:flex;flex-direction:column;gap:8px">
@@ -801,6 +848,24 @@ function saveMenuName(view, newName) {
   localStorage.setItem('myspace_custom_menu_names', JSON.stringify(customNames));
   applyMenuSettings();
   toast('메뉴 이름이 변경되었습니다.', 'info');
+}
+
+function saveAdvancedSettings() {
+  localStorage.setItem('myspace_r1', document.getElementById('sRoutine1').value.trim() || '아침 루틴');
+  localStorage.setItem('myspace_r2', document.getElementById('sRoutine2').value.trim() || '저녁 루틴');
+  localStorage.setItem('myspace_gcats', document.getElementById('sGoalCats').value.trim() || '건강,독서,재정,운동,학습,여행,기타');
+
+  if (!state.data.pomodoro) state.data.pomodoro = {};
+  if (!state.data.pomodoro.settings) state.data.pomodoro.settings = {};
+  state.data.pomodoro.settings.work = parseInt(document.getElementById('sPomWork').value) || 25;
+  state.data.pomodoro.settings.shortBreak = parseInt(document.getElementById('sPomShort').value) || 5;
+  state.data.pomodoro.settings.longBreak = parseInt(document.getElementById('sPomLong').value) || 15;
+  storage.save();
+  
+  // 포모도로 타이머 리셋 (진행 중일 수 있으므로)
+  if (typeof resetPom === 'function') resetPom();
+
+  toast('세부 설정이 저장되었습니다!', 'success');
 }
 
 // 앱 시작 시 메뉴 및 배경 설정 적용
