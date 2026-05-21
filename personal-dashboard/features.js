@@ -8,7 +8,10 @@ const POM_COLORS = {work:'#8b5cf6', shortBreak:'#06b6d4', longBreak:'#22c55e'};
 
 function pomodoro() {
   const vc = document.getElementById('viewContainer');
-  const s = (state.data.pomodoro = state.data.pomodoro || {sessions:[],settings:{work:25,shortBreak:5,longBreak:15}});
+  if (!state.data.pomodoro) state.data.pomodoro = {};
+  const s = state.data.pomodoro;
+  if (!s.sessions) s.sessions = [];
+  if (!s.settings) s.settings = {work:25,shortBreak:5,longBreak:15};
   const cfg = s.settings;
   const today = todayISO();
   const todaySess = s.sessions.filter(x => x.date === today);
@@ -52,6 +55,8 @@ function togglePom() {
         clearInterval(_pomTimer); _pomRunning = false;
         if (_pomMode === 'work') {
           const s = state.data.pomodoro;
+          if (!s.settings) s.settings = {work:25,shortBreak:5,longBreak:15};
+          if (!s.sessions) s.sessions = [];
           s.sessions.push({date:todayISO(), duration:s.settings.work, task:'집중 세션'});
           storage.save();
           toast('🍅 포모도로 완료! 잠시 쉬어가세요.', 'success');
@@ -65,14 +70,14 @@ function togglePom() {
 
 function resetPom() {
   clearInterval(_pomTimer); _pomRunning = false;
-  const cfg = (state.data.pomodoro||{settings:{work:25,shortBreak:5,longBreak:15}}).settings;
+  const cfg = (state.data.pomodoro && state.data.pomodoro.settings) || {work:25,shortBreak:5,longBreak:15};
   _pomSecs = {work:cfg.work,shortBreak:cfg.shortBreak,longBreak:cfg.longBreak}[_pomMode]*60;
   if (state.view==='pomodoro') pomodoro();
 }
 
 function setPomMode(m) {
   clearInterval(_pomTimer); _pomRunning = false; _pomMode = m;
-  const cfg = (state.data.pomodoro||{settings:{work:25,shortBreak:5,longBreak:15}}).settings;
+  const cfg = (state.data.pomodoro && state.data.pomodoro.settings) || {work:25,shortBreak:5,longBreak:15};
   _pomSecs = {work:cfg.work,shortBreak:cfg.shortBreak,longBreak:cfg.longBreak}[m]*60;
   if (state.view==='pomodoro') pomodoro();
 }
