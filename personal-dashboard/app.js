@@ -1053,10 +1053,29 @@ function calendar() {
 
   const todayD = new Date();
   const evByDate = {};
-  state.data.events.forEach(e => { if (!evByDate[e.date]) evByDate[e.date]=[]; evByDate[e.date].push(e); });
+  state.data.events.forEach(e => { 
+    if(!e.date) return;
+    let d = new Date(e.date);
+    const end = e.endDate ? new Date(e.endDate) : new Date(e.date);
+    let cur = d > end ? end : d;
+    const last = d > end ? d : end;
+    cur.setHours(12,0,0,0); // UTC timezone mismatch fix
+    last.setHours(12,0,0,0);
+    
+    while(cur <= last) {
+      const iso = cur.toISOString().split('T')[0];
+      if(!evByDate[iso]) evByDate[iso]=[];
+      evByDate[iso].push(e);
+      cur.setDate(cur.getDate()+1);
+    }
+  });
 
   const moStr = `${yr}-${pad(mo+1)}`;
-  const moEvents = state.data.events.filter(e=>e.date?.startsWith(moStr)).sort((a,b)=>a.date.localeCompare(b.date));
+  const moEventsSet = new Set();
+  Object.keys(evByDate).filter(iso => iso.startsWith(moStr)).forEach(iso => {
+    evByDate[iso].forEach(e => moEventsSet.add(e));
+  });
+  const moEvents = Array.from(moEventsSet).sort((a,b)=>a.date.localeCompare(b.date));
 
   vc.innerHTML = `
     <div class="view-header">
@@ -1136,10 +1155,16 @@ function openAddEventModal(defaultDate = null) {
     </div>
     <div class="form-row">
       <div class="form-group">
-        <label class="form-label">날짜 <span style="color:var(--red)">*</span></label>
+        <label class="form-label">시작일 <span style="color:var(--red)">*</span></label>
         <input id="fEvDate" type="date" class="form-input" value="${defaultDate||todayISO()}">
       </div>
       <div class="form-group">
+        <label class="form-label">종료일 (선택)</label>
+        <input id="fEvEndDate" type="date" class="form-input">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group" style="width:50%">
         <label class="form-label">시간 (선택)</label>
         <input id="fEvTime" type="time" class="form-input">
       </div>
@@ -1173,10 +1198,16 @@ function editEventModal(editId) {
     </div>
     <div class="form-row">
       <div class="form-group">
-        <label class="form-label">날짜 <span style="color:var(--red)">*</span></label>
+        <label class="form-label">시작일 <span style="color:var(--red)">*</span></label>
         <input id="fEvDate" type="date" class="form-input" value="${ev.date}">
       </div>
       <div class="form-group">
+        <label class="form-label">종료일 (선택)</label>
+        <input id="fEvEndDate" type="date" class="form-input" value="${ev.endDate||''}">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group" style="width:50%">
         <label class="form-label">시간 (선택)</label>
         <input id="fEvTime" type="time" class="form-input" value="${ev.time||''}">
       </div>
@@ -1208,14 +1239,16 @@ function selectEvColor(c, el) {
 function saveEvent(editId = '') {
   const title = document.getElementById('fEvTitle').value.trim();
   const date  = document.getElementById('fEvDate').value;
+  const endDate = document.getElementById('fEvEndDate') ? document.getElementById('fEvEndDate').value : '';
   if (!title) { toast('제목을 입력해주세요','error'); return; }
-  if (!date)  { toast('날짜를 선택해주세요','error'); return; }
+  if (!date)  { toast('시작일을 선택해주세요','error'); return; }
 
   if (editId) {
     const ev = state.data.events.find(x => x.id === editId);
     if (ev) {
       ev.title       = title;
       ev.date        = date;
+      ev.endDate     = endDate || date;
       ev.time        = document.getElementById('fEvTime').value;
       ev.description = document.getElementById('fEvDesc').value;
       ev.color       = document.getElementById('fEvColor').value;
@@ -1223,7 +1256,7 @@ function saveEvent(editId = '') {
     toast('일정이 수정되었습니다');
   } else {
     state.data.events.push({
-      id:uid(), title, date, time:document.getElementById('fEvTime').value,
+      id:uid(), title, date, endDate: endDate || date, time:document.getElementById('fEvTime').value,
       description:document.getElementById('fEvDesc').value,
       color:document.getElementById('fEvColor').value
     });
