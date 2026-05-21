@@ -519,36 +519,100 @@ function getHiddenMenus() {
   catch { return []; }
 }
 
+function getCustomMenuNames() {
+  try { return JSON.parse(localStorage.getItem('myspace_custom_menu_names')||'{}'); }
+  catch { return {}; }
+}
+
 function applyMenuSettings() {
   const hidden = getHiddenMenus();
+  const customNames = getCustomMenuNames();
+  
   ALL_MENUS.forEach(m => {
     const el = document.getElementById('nav-'+m.view);
     if (el) {
+      // 숨김 처리
       const li = el.closest('.nav-item');
       if (li) li.style.display = hidden.includes(m.view) ? 'none' : '';
+      
+      // 이름 변경 적용
+      const name = customNames[m.view] || m.label;
+      const textEl = el.querySelector('.nav-text');
+      if (textEl) textEl.textContent = name;
+      
+      // PAGE_TITLES (app.js) 전역 변수 업데이트
+      if (typeof PAGE_TITLES !== 'undefined') {
+        PAGE_TITLES[m.view] = name;
+      }
     }
   });
+
+  // 현재 페이지 타이틀 즉시 업데이트
+  if (typeof state !== 'undefined' && typeof PAGE_TITLES !== 'undefined') {
+    const pageTitleEl = document.getElementById('pageTitle');
+    if (pageTitleEl) pageTitleEl.textContent = PAGE_TITLES[state.view] || state.view;
+  }
 }
+
+function applyCustomBackground() {
+  const bg = localStorage.getItem('myspace_bg') || '';
+  if (bg) {
+    if (bg.startsWith('http') || bg.startsWith('data:image')) {
+      document.body.style.backgroundImage = `url('${bg}')`;
+      document.body.style.backgroundSize = 'cover';
+      document.body.style.backgroundPosition = 'center';
+      document.body.style.backgroundAttachment = 'fixed';
+    } else {
+      document.body.style.backgroundImage = 'none';
+      document.body.style.backgroundColor = bg;
+    }
+  } else {
+    document.body.style.backgroundImage = '';
+    document.body.style.backgroundColor = '';
+  }
+}
+
 
 function settings() {
   const vc = document.getElementById('viewContainer');
   const hidden = getHiddenMenus();
+  const customNames = getCustomMenuNames();
+  const bg = localStorage.getItem('myspace_bg') || '';
 
   vc.innerHTML = `
-  <div style="max-width:600px;margin:0 auto;padding:24px">
+  <div style="max-width:600px;margin:0 auto;padding:24px;padding-bottom:100px">
+    
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-header"><h3 class="card-title"><i class="fas fa-palette"></i> 테마 및 배경 설정</h3></div>
+      <p style="font-size:13px;color:var(--text-sub);margin-bottom:16px">이미지 URL이나 색상 코드를 입력하거나, 내 PC의 이미지를 업로드하세요.</p>
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px">
+        <input id="sBackground" class="form-input" value="${bg}" placeholder="예: https://... 또는 #121212">
+        <button class="btn btn-primary" onclick="saveBackground()">적용</button>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <button class="btn btn-secondary btn-sm" onclick="document.getElementById('bgFileInput').click()"><i class="fas fa-image"></i> 내 이미지 업로드</button>
+        <input type="file" id="bgFileInput" accept="image/*" style="display:none" onchange="uploadBackgroundImage(this)">
+        <span style="color:var(--text-dim);font-size:12px">|</span>
+        <button class="btn btn-secondary btn-sm" onclick="document.getElementById('sBackground').value='#1e1b4b';saveBackground()">딥 네이비</button>
+        <button class="btn btn-secondary btn-sm" onclick="document.getElementById('sBackground').value='#0f172a';saveBackground()">다크 슬레이트</button>
+        <button class="btn btn-secondary btn-sm" onclick="document.getElementById('sBackground').value='';saveBackground()">기본 복구</button>
+      </div>
+    </div>
+
     <div class="card" style="margin-bottom:16px">
       <div class="card-header"><h3 class="card-title"><i class="fas fa-bars"></i> 사이드바 메뉴 설정</h3></div>
-      <p style="font-size:13px;color:var(--text-sub);margin-bottom:16px">보고 싶은 메뉴만 켜두세요. 데이터는 삭제되지 않습니다.</p>
+      <p style="font-size:13px;color:var(--text-sub);margin-bottom:16px">보고 싶은 메뉴를 켜고 끄거나, 이름을 직접 변경할 수 있습니다.</p>
       <div style="display:flex;flex-direction:column;gap:8px">
         ${ALL_MENUS.map(m => {
           const on = !hidden.includes(m.view);
+          const cname = customNames[m.view] || m.label;
           return `<div style="display:flex;align-items:center;justify-content:space-between;padding:12px;background:var(--bg-surface);border-radius:var(--r-sm)">
-            <div style="display:flex;align-items:center;gap:10px">
-              <i class="fas ${m.icon}" style="width:18px;color:var(--purple)"></i>
-              <span style="font-size:14px;font-weight:500">${m.label}</span>
-              ${m.required ? '<span style="font-size:10px;color:var(--text-dim);background:var(--bg-input);padding:2px 6px;border-radius:10px;margin-left:4px">필수</span>' : ''}
+            <div style="display:flex;align-items:center;gap:10px;flex:1">
+              <i class="fas ${m.icon}" style="width:18px;color:var(--purple);text-align:center"></i>
+              <input type="text" class="form-input" style="padding:6px 10px;font-size:13px;flex:1;max-width:200px" value="${cname}" onchange="saveMenuName('${m.view}', this.value)" placeholder="${m.label}">
+              ${m.required ? '<span style="font-size:10px;color:var(--text-dim);background:var(--bg-input);padding:2px 6px;border-radius:10px;margin-left:4px;white-space:nowrap">필수</span>' : ''}
             </div>
-            <button onclick="toggleMenu('${m.view}',${!on})" ${m.required?'disabled':''} style="width:48px;height:26px;border-radius:13px;border:none;background:${on?'var(--purple)':'var(--bg-input)'};cursor:${m.required?'not-allowed':'pointer'};position:relative;transition:background 0.3s;opacity:${m.required?'0.4':'1'}">
+            <button onclick="toggleMenu('${m.view}',${!on})" ${m.required?'disabled':''} style="margin-left:12px;width:48px;height:26px;border-radius:13px;border:none;background:${on?'var(--purple)':'var(--bg-input)'};cursor:${m.required?'not-allowed':'pointer'};position:relative;transition:background 0.3s;opacity:${m.required?'0.4':'1'};flex-shrink:0">
               <span style="position:absolute;top:3px;left:${on?'25':'3'}px;width:20px;height:20px;border-radius:50%;background:white;transition:left 0.3s;display:block"></span>
             </button>
           </div>`;
@@ -621,8 +685,81 @@ function clearAllData() {
   if (!confirm('⚠️ 모든 데이터가 삭제됩니다. 정말 초기화할까요?')) return;
   if (!confirm('정말요? 되돌릴 수 없어요!')) return;
   localStorage.removeItem('myspace_data_v1');
+  localStorage.removeItem('myspace_hidden_menus');
+  localStorage.removeItem('myspace_custom_menu_names');
+  localStorage.removeItem('myspace_bg');
   location.reload();
 }
 
-// 앱 시작 시 메뉴 설정 적용
-document.addEventListener('DOMContentLoaded', () => setTimeout(applyMenuSettings, 200));
+function saveBackground() {
+  const bg = document.getElementById('sBackground').value.trim();
+  localStorage.setItem('myspace_bg', bg);
+  applyCustomBackground();
+  toast('🎨 배경이 적용되었습니다!', 'success');
+}
+
+function uploadBackgroundImage(input) {
+  const file = input.files[0];
+  if (!file) return;
+  
+  toast('이미지 최적화 중...', 'info');
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const img = new Image();
+    img.onload = function() {
+      // 캔버스를 이용해 해상도 및 용량 최적화 (로컬스토리지 한계 방지)
+      const canvas = document.createElement('canvas');
+      const MAX_WIDTH = 1920;
+      const MAX_HEIGHT = 1080;
+      let width = img.width;
+      let height = img.height;
+      
+      if (width > height) {
+        if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
+      } else {
+        if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; }
+      }
+      
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+      
+      // 화질 70% JPEG로 압축해서 저장
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+      
+      try {
+        localStorage.setItem('myspace_bg', dataUrl);
+        const bgInput = document.getElementById('sBackground');
+        if(bgInput) bgInput.value = dataUrl;
+        applyCustomBackground();
+        toast('🖼️ 내 이미지로 배경이 설정되었습니다!', 'success');
+      } catch (err) {
+        console.error(err);
+        toast('용량이 너무 커서 저장할 수 없습니다.', 'error');
+      }
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function saveMenuName(view, newName) {
+  const customNames = getCustomMenuNames();
+  if (!newName.trim()) {
+    delete customNames[view];
+  } else {
+    customNames[view] = newName.trim();
+  }
+  localStorage.setItem('myspace_custom_menu_names', JSON.stringify(customNames));
+  applyMenuSettings();
+  toast('메뉴 이름이 변경되었습니다.', 'info');
+}
+
+// 앱 시작 시 메뉴 및 배경 설정 적용
+document.addEventListener('DOMContentLoaded', () => {
+  setTimeout(() => {
+    applyMenuSettings();
+    applyCustomBackground();
+  }, 200);
+});
